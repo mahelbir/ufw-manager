@@ -1,0 +1,94 @@
+# Git / VCS
+.git
+.gitignore
+.gitattributes
+.github/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Docker metadata (compose / ignore file itself)
+docker-compose.yaml
+docker-compose.yml
+.dockerignore
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+cmake-build-*/
+atlassian-ide-plugin.xml
+
+# VS Code
+.vscode/
+.history/
+.ionide
+*.vsix
+
+# Sublime Text
+*.sublime-workspace
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+sftp-config.json
+sftp-config-alt*.json
+Package Control.*
+GitHub.sublime-settings
+bh_unicode_properties.cache
+oscrypto-ca-bundle.crt
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+*.icloud
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Zsh
+*.zwc
+*.zwc.old
+*zcompdump*
+.zsh_history
+.zsh_sessions
+.zcalc_history
+._zinit
+.zinit_lstupd
+zsdoc/data
+.directory_history
+.venv
+
+
+*.md

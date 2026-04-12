@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST_UFW=(nsenter -t 1 -m -u -i -n -p -- ufw)
+
+# Route mode toggle. When "on", rule commands are prefixed with `route` so
+# they affect the FORWARD chain (Docker / published-port traffic). When "off",
+# rule commands go to ufw unchanged (INPUT chain). Overridable via env var.
+ROUTE_MODE="${UFW_ROUTE_MODE:-on}"
+
+usage() {
+  cat <<'EOF'
+ufw-manager — host UFW wrapper. Extras on top of normal ufw:
+
+  allow                    interactive wizard (port / ip / proto)
+  deny                     interactive wizard
+  delete                   interactive wizard (numbered list, multi-select)
+
+  route-mode [on|off|toggle|status]
+                           toggle whether rule commands are prefixed with
+                           `route`. Default: on. Env: UFW_ROUTE_MODE.
+
+  list                     alias for `status numbered`
+  shell                    interactive REPL
+  help                     this message
+
+Anything else is passed through to host ufw as-is (with the route prefix
+injected for rule commands when route-mode is on).
+EOF
+}
+
+run_ufw() {
+  "${HOST_UFW[@]}" "$@"
+}
+
+# Runs a rule command, honoring ROUTE_MODE: prepends `route` when enabled.
+run_rule() {
+  if [[ "$ROUTE_MODE" == "on" ]]; then
+    echo "-> ufw route $*"
+    run_ufw route "$@"
+  else
+    echo "-> ufw $*"
+    run_ufw "$@"
+  fi
+}
+
+cmd_route_mode() {
+  local sub="${1:-status}"
+  case "$sub" in
+    on)
+      ROUTE_MODE="on"
+      echo "route-mode: on"
+      ;;
+    off)
+      ROUTE_MODE="off"
+      echo "route-mode: off"
+      ;;
+    toggle)
+      if [[ "$ROUTE_MODE" == "on" ]]; then
+        ROUTE_MODE="off"
+      else
+        ROUTE_MODE="on"
+      fi
+      echo "route-mode: $ROUTE_MODE"
+      ;;
+    status|"")
+      echo "route-mode: $ROUTE_MODE"
+      ;;
+    *)
+      echo "error: unknown route-mode arg '$sub' (on/off/toggle/status)" >&2
+      return 1
+      ;;
+  esac
+}
+
+wizard_rule() {
+  local action="$1"
+  local port ip proto ans
+
+  read -r -p "Port (e.g. 5432 or 5000:5010): " port
+  if [[ -z "$port" ]]; then
+    echo "cancelled: port is required" >&2
+    return 1
+  fi
+
+  read -r -p "IP/CIDR (empty = any): " ip
+  [[ -z "$ip" ]] && ip="any"
+
+  read -r -p "Protocol [tcp/udp/both] (default: both): " proto
+  proto="${proto:-both}"
+  case "$proto" in
+    tcp|udp|both) ;;
+    *)
+      echo "cancelled: invalid protocol '$proto' (tcp/udp/both)" >&2
+      return 1
+      ;;
+  esac
+
+  local protos=()
+  if [[ "$proto" == "both" ]]; then
+    protos=(tcp udp)
+  else
+    protos=("$proto")
+  fi
+
+  local route_word=""
+  [[ "$ROUTE_MODE" == "on" ]] && route_word="route "
+
+  echo
+  echo "commands to run:"
+  local p
+  for p in "${protos[@]}"; do
+    echo "  ufw ${route_word}${action} proto $p from $ip to any port $port"
+  done
+  echo
+  read -r -p "proceed? [Y/n]: " ans
+  if [[ "$ans" == "n" || "$ans" == "N" ]]; then
+    echo "cancelled."
+    return 0
+  fi
+
+  local failed=0
+  for p in "${protos[@]}"; do
+    if ! run_rule "$action" proto "$p" from "$ip" to any port "$port"; then
+      echo "error: failed to add $p rule" >&2
+      failed=1
+    fi
+  done
+  return $failed
+}
+
+wizard_delete() {
+  echo "current rules:"
+  run_ufw status numbered
+  echo
+  local raw
+  read -r -p "rule number(s) to delete (space or comma separated): " raw
+  raw="${raw//,/ }"
+  # shellcheck disable=SC2206
+  local nums=($raw)
+
+  if (( ${#nums[@]} == 0 )); then
+    echo "error: at least one number required" >&2
+    return 1
+  fi
+
+  local n
+  for n in "${nums[@]}"; do
+    if [[ ! "$n" =~ ^[0-9]+$ ]]; then
+      echo "error: invalid number '$n'" >&2
+      return 1
+    fi
+  done
+
+  # Dedupe and sort descending so earlier deletes don't shift later indices.
+  local sorted
+  sorted=$(printf '%s\n' "${nums[@]}" | sort -un | sort -rn)
+  # shellcheck disable=SC2206
+  local ordered=($sorted)
+
+  echo "rules to delete (high to low): ${ordered[*]}"
+  local ans
+  read -r -p "proceed? [y/N]: " ans
+  if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
+    echo "cancelled."
+    return 0
+  fi
+
+  local failed=0
+  for n in "${ordered[@]}"; do
+    if ! echo "y" | run_rule delete "$n"; then
+      echo "error: failed to delete #$n" >&2
+      failed=1
+    fi
+  done
+  return $failed
+}
+
+dispatch() {
+  local sub="${1:-help}"
+  shift || true
+  case "$sub" in
+    allow|deny)
+      if (( $# == 0 )); then
+        wizard_rule "$sub"
+      else
+        run_rule "$sub" "$@"
+      fi
+      ;;
+    delete|del)
+      if (( $# == 0 )); then
+        wizard_delete
+      else
+        run_rule delete "$@"
+      fi
+      ;;
+    reject|limit)
+      run_rule "$sub" "$@"
+      ;;
+    insert)
+      run_rule insert "$@"
+      ;;
+    route-mode|routemode|mode)
+      cmd_route_mode "$@"
+      ;;
+    list|ls)
+      run_ufw status numbered
+      ;;
+    status|show|reload|enable|disable|reset|default|logging|app|version)
+      run_ufw "$sub" "$@"
+      ;;
+    shell)
+      run_shell
+      ;;
+    help|-h|--help|"")
+      usage
+      ;;
+    *)
+      echo "unknown command: $sub" >&2
+      usage
+      return 1
+      ;;
+  esac
+}
+
+run_shell() {
+  echo "ufw-manager interactive mode. type 'help' for commands, 'exit' to quit."
+  echo "route-mode: $ROUTE_MODE (toggle with: route-mode on|off|toggle)"
+  local line prompt
+  while true; do
+    prompt="ufw[${ROUTE_MODE}]> "
+    read -r -e -p "$prompt" line || { echo; break; }
+    [[ -z "$line" ]] && continue
+    if [[ "$line" == "exit" || "$line" == "quit" ]]; then
+      break
+    fi
+    # shellcheck disable=SC2086
+    set +e
+    dispatch $line
+    set -e
+  done
+}
+
+dispatch "$@"

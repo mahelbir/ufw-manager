@@ -1,0 +1,11 @@
+services:
+  ufw-manager:
+    build: .
+    container_name: ufw-manager
+    pid: host
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    restart: "no"
+    command: ["shell"]
