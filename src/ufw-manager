@@ -6,23 +6,23 @@ HOST_UFW=(nsenter -t 1 -m -u -i -n -p -- ufw)
 # Route mode toggle. When "on", rule commands are prefixed with `route` so
 # they affect the FORWARD chain (Docker / published-port traffic). When "off",
 # rule commands go to ufw unchanged (INPUT chain). Overridable via env var.
-ROUTE_MODE="${UFW_ROUTE_MODE:-on}"
+ROUTE_MODE="${ROUTE_MODE:-on}"
 
 usage() {
   cat <<'EOF'
 ufw-manager — host UFW wrapper. Extras on top of normal ufw:
 
-  allow                    interactive wizard (port / ip / proto)
+  allow                    interactive wizard
   deny                     interactive wizard
-  delete                   interactive wizard (numbered list, multi-select)
+  delete                   interactive wizard
 
   route-mode [on|off|toggle|status]
                            toggle whether rule commands are prefixed with
-                           `route`. Default: on. Env: UFW_ROUTE_MODE.
+                           `route`. Default: on. Env: ROUTE_MODE.
 
   list                     alias for `status numbered`
   shell                    interactive REPL
-  help                     this message
+  help                     help message
 
 Anything else is passed through to host ufw as-is (with the route prefix
 injected for rule commands when route-mode is on).
@@ -168,7 +168,8 @@ wizard_delete() {
 
   local failed=0
   for n in "${ordered[@]}"; do
-    if ! echo "y" | run_rule delete "$n"; then
+    echo "-> ufw delete $n"
+    if ! echo "y" | run_ufw delete "$n"; then
       echo "error: failed to delete #$n" >&2
       failed=1
     fi
@@ -177,7 +178,7 @@ wizard_delete() {
 }
 
 dispatch() {
-  local sub="${1:-help}"
+  local sub="${1:-shell}"
   shift || true
   case "$sub" in
     allow|deny)
@@ -190,6 +191,9 @@ dispatch() {
     delete|del)
       if (( $# == 0 )); then
         wizard_delete
+      elif (( $# == 1 )) && [[ "$1" =~ ^[0-9]+$ ]]; then
+        echo "-> ufw delete $1"
+        run_ufw delete "$1"
       else
         run_rule delete "$@"
       fi
@@ -212,7 +216,7 @@ dispatch() {
     shell)
       run_shell
       ;;
-    help|-h|--help|"")
+    help|-h|--help)
       usage
       ;;
     *)

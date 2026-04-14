@@ -2,7 +2,17 @@ FROM alpine:3.20
 
 RUN apk add --no-cache bash util-linux
 
-COPY src/ufw-manager /usr/local/bin/ufw-manager
-RUN chmod +x /usr/local/bin/ufw-manager
+COPY src/ufw-manager /usr/local/bin/ufw
+RUN chmod +x /usr/local/bin/ufw
 
-ENTRYPOINT ["/usr/local/bin/ufw-manager"]
+RUN printf '%s\n' \
+'if [ -t 1 ]; then' \
+'  /usr/local/bin/ufw help' \
+'  printf "\n\033[1;32m>>> Run \`ufw <command>\` to execute <<<\033[0m\n\n"' \
+'fi' \
+    > /root/.bashrc \
+ && cp /root/.bashrc /root/.profile \
+ && cp /root/.bashrc /root/.shrc
+ENV ENV=/root/.shrc
+
+ENTRYPOINT ["/usr/local/bin/ufw"]
