@@ -1,8 +1,8 @@
 IMAGE=mahelbir/ufw-manager
-VERSION=1.0.0
+VERSION=2.0.0
 
 dev:
-	docker compose -f docker-compose.dev.yaml up --build --force-recreate
+	docker compose -f docker-compose.dev.yaml up -d --build --force-recreate
 
 push:
 	docker buildx build \

@@ -8,4 +8,6 @@ services:
     stdin_open: true
     tty: true
     restart: "no"
+    volumes:
+      - ./templates:/usr/local/share/ufw-manager/templates/custom:ro
     command: ["shell"]

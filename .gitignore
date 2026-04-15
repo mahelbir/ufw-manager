@@ -240,3 +240,6 @@ zsdoc/data
 !/tests/_output/.gitkeep
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,dotenv,windows,sublimetext,visualstudiocode,jetbrains+all,zsh
+
+/templates
+/src/templates/custom/*.tpl

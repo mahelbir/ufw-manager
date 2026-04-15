@@ -4,10 +4,11 @@
 <a target="_blank" href="https://hub.docker.com/r/mahelbir/ufw-manager"><img src="https://img.shields.io/docker/v/mahelbir/ufw-manager?label=docker%20image%20ver." /></a>
 
 A thin, ergonomic wrapper around the host's UFW firewall — interactive
-wizards, a REPL, and sane defaults for servers that run Docker behind
-[ufw-docker](https://github.com/chaifeng/ufw-docker). Ships as a 3-line
-Dockerfile (no host agent, no bind-mounts, no ufw inside the container) or as
-a standalone bash script you can drop on any Linux host.
+wizards, a REPL, template shortcuts, and sane defaults for
+servers that run Docker behind
+[ufw-docker](https://github.com/chaifeng/ufw-docker). Ships as a tiny Alpine
+image (no host agent, no ufw inside the container) or as a standalone bash
+script you can drop on any Linux host.
 
 ## ⭐ Why
 
@@ -30,9 +31,13 @@ rules to the `FORWARD` chain via `ufw route ...`.
   for every command.
 - **Zero host install (Docker mode)** — the image only carries `bash` +
   `nsenter` and runs ufw inside the host's namespaces. No ufw inside the
-  container, no bind-mounts, no socket.
+  container, no iptables state bind-mounted from the host, no socket.
 - **Runs standalone too** — drop the script on a Linux host and it
   auto-detects that it's already on the host and skips the namespace hop.
+- **[Template shortcuts](TEMPLATES.md)** — drop small `.tpl` files into a
+  folder so `ufw pg`, `ufw ssh`, `ufw mysql` open the wizard with port and
+  protocol pre-filled. Ship-with-image or bind-mount your own, override any
+  default without a rebuild.
 
 ## 🔧 How to Install
 
@@ -97,6 +102,21 @@ sudo ufw-manager allow
 sudo ufw-manager list
 ```
 
+## 🧩 Templates
+
+Templates turn repetitive rules into single-word commands. Drop a `.tpl`
+file into the templates folder and `ufw <name>` opens the wizard with port
+and protocol pre-filled — usually only the IP is left for you to type or
+pass as an arg:
+
+```bash
+ufw pg                 # allow:5432:$1:tcp → prompts for IP
+ufw pg 1.2.3.4         # same, IP from argv
+```
+
+Full file format, placeholder resolution order, and more examples in
+**[TEMPLATES.md](TEMPLATES.md)**.
+
 ## 🚦 Route Mode
 
 `ufw route ...` writes rules to the `FORWARD` chain, which is what Docker's
@@ -133,17 +153,17 @@ route-mode: off
 ufw[off]> allow 22/tcp
 ```
 
-**Set the initial mode via `ROUTE_MODE` env var:**
+**Set the initial mode via `UFW_ROUTE_MODE` env var:**
 
 ```bash
 # Docker (one-shot)
-docker compose run --rm -e ROUTE_MODE=off ufw-manager allow 22/tcp
+docker compose run --rm -e UFW_ROUTE_MODE=off ufw-manager allow 22/tcp
 
 # Docker (exec into running container)
-docker exec -it -e ROUTE_MODE=off ufw-manager ufw allow 22/tcp
+docker exec -it -e UFW_ROUTE_MODE=off ufw-manager ufw allow 22/tcp
 
 # Standalone
-sudo ROUTE_MODE=off ufw-manager allow 22/tcp
+sudo UFW_ROUTE_MODE=off ufw-manager allow 22/tcp
 ```
 
 Or set it permanently in `docker-compose.yaml`:
@@ -153,7 +173,7 @@ services:
   ufw-manager:
     image: mahelbir/ufw-manager
     environment:
-      ROUTE_MODE: "on"   # or "off"
+      UFW_ROUTE_MODE: "on"   # or "off"
     # ...
 ```
 
@@ -161,16 +181,17 @@ Accepted values: `on` (default) or `off`.
 
 ## 📝 Commands
 
-| Command                        | Description                                          |
-|--------------------------------|------------------------------------------------------|
-| `allow` / `deny`               | Interactive wizard (port → IP → protocol → preview)  |
-| `allow <args>` / `deny <args>` | Pass args to ufw (route-prefixed when mode is on)    |
-| `delete`                       | Interactive wizard, accepts multiple numbers at once |
-| `delete <args>`                | Pass args to ufw                                     |
-| `list`                         | Alias for `ufw status numbered`                      |
-| `route-mode [on/off/toggle]`   | Show or change route mode                            |
-| `shell`                        | Interactive REPL                                     |
-| `help`                         | Built-in help                                        |
+| Command                        | Description                                              |
+|--------------------------------|----------------------------------------------------------|
+| `allow` / `deny`               | Interactive wizard (port → IP → protocol → preview)      |
+| `allow <args>` / `deny <args>` | Pass args to ufw (route-prefixed when mode is on)        |
+| `delete`                       | Interactive wizard, accepts multiple numbers at once     |
+| `delete <args>`                | Pass args to ufw                                         |
+| `list`                         | Alias for `ufw status numbered`                          |
+| `route-mode [on/off/toggle]`   | Show or change route mode                                |
+| `shell`                        | Interactive REPL                                         |
+| `<name> [args]`                | Run `<name>.tpl` — see [TEMPLATES.md](TEMPLATES.md)      |
+| `help`                         | Built-in help                                            |
 
 Any other command is forwarded to host ufw as-is — with the route prefix
 applied to rule verbs when route mode is on.

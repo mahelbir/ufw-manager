@@ -5,6 +5,8 @@ RUN apk add --no-cache bash util-linux
 COPY src/ufw-manager /usr/local/bin/ufw
 RUN chmod +x /usr/local/bin/ufw
 
+COPY src/templates/default /usr/local/share/ufw-manager/templates/default
+
 RUN printf '%s\n' \
 'if [ -t 1 ] && [ -z "${UFW_BANNER_SHOWN:-}" ]; then' \
 '  export UFW_BANNER_SHOWN=1' \

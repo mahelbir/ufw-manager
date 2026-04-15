@@ -21,7 +21,26 @@ detect_host_ufw
 # Route mode toggle. When "on", rule commands are prefixed with `route` so
 # they affect the FORWARD chain (Docker / published-port traffic). When "off",
 # rule commands go to ufw unchanged (INPUT chain). Overridable via env var.
-ROUTE_MODE="${ROUTE_MODE:-on}"
+ROUTE_MODE="${UFW_ROUTE_MODE:-on}"
+
+# Template dir. Priority: $UFW_TEMPLATES_DIR > script-relative ./templates
+# (repo / dev checkout) > /usr/local/share/ufw-manager/templates (Docker image
+# and installed standalone). Each tree holds custom/ (user, volume-mounted in
+# Docker) and default/ (shipped with the repo) subfolders.
+detect_templates_dir() {
+  TEMPLATES_DIR="${UFW_TEMPLATES_DIR:-}"
+  [[ -n "$TEMPLATES_DIR" ]] && return
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -d "$script_dir/templates" ]]; then
+    TEMPLATES_DIR="$script_dir/templates"
+  else
+    TEMPLATES_DIR="/usr/local/share/ufw-manager/templates"
+  fi
+}
+
+TEMPLATES_DIR=""
+detect_templates_dir
 
 usage() {
   cat <<'EOF'
@@ -33,11 +52,13 @@ ufw-manager — host UFW wrapper. Extras on top of normal ufw:
 
   route-mode [on|off|toggle|status]
                            toggle whether rule commands are prefixed with
-                           `route`. Default: on. Env: ROUTE_MODE.
+                           `route`. Default: on. Env: UFW_ROUTE_MODE.
 
   list                     alias for `status numbered`
   shell                    interactive REPL
   help                     help message
+
+  <name> [args...]         run template <name>.tpl
 
 Anything else is passed through to host ufw as-is (with the route prefix
 injected for rule commands when route-mode is on).
@@ -90,19 +111,32 @@ cmd_route_mode() {
 
 wizard_rule() {
   local action="$1"
-  local port ip proto ans
+  local port="${2:-}" ip="${3:-}" proto="${4:-}"
+  local ans
 
-  read -r -p "Port (e.g. 5432 or 5000:5010): " port
+  if [[ -n "$port" ]]; then
+    echo "Port: $port"
+  else
+    read -r -p "Port (e.g. 5432 or 5000:5010): " port
+  fi
   if [[ -z "$port" ]]; then
     echo "cancelled: port is required" >&2
     return 1
   fi
 
-  read -r -p "IP/CIDR (empty = any): " ip
+  if [[ -n "$ip" ]]; then
+    echo "IP/CIDR: $ip"
+  else
+    read -r -p "IP/CIDR (empty = any): " ip
+  fi
   [[ -z "$ip" ]] && ip="any"
 
-  read -r -p "Protocol [tcp/udp/both] (default: both): " proto
-  proto="${proto:-both}"
+  if [[ -n "$proto" ]]; then
+    echo "Protocol: $proto"
+  else
+    read -r -p "Protocol [tcp/udp/both] (default: both): " proto
+    proto="${proto:-both}"
+  fi
   case "$proto" in
     tcp|udp|both) ;;
     *)
@@ -192,6 +226,103 @@ wizard_delete() {
   return $failed
 }
 
+# Finds a template by bare name (no .tpl suffix). Searches custom/ before
+# default/ and walks each tree up to 10 levels deep. Prints the first hit on
+# stdout and returns 0; returns 1 if nothing matched.
+template_find() {
+  local name="$1" base sub hit
+  for sub in custom default; do
+    base="$TEMPLATES_DIR/$sub"
+    [[ -d "$base" ]] || continue
+    hit=$(find "$base" -maxdepth 10 -type f -name "${name}.tpl" 2>/dev/null | head -n 1 || true)
+    if [[ -n "$hit" ]]; then
+      printf '%s\n' "$hit"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Parses a template file and runs wizard_rule with the template's values.
+# Template format (one rule line + optional placeholder assignments):
+#   action:port:ip:proto         where action is allow|deny|reject|limit and
+#                                any field may be `$N` as a placeholder
+#   $N=<shell command>           fallback used if $N isn't passed on argv
+#   # comment                    ignored
+# Placeholder resolution order: argv[N] > `$N=` shell output > empty (wizard
+# then prompts for that field).
+template_run() {
+  local file="$1"; shift
+  local argv=("$@")
+  local line rule="" action port ip proto
+  # Parallel arrays instead of `declare -A` so this stays portable back to
+  # bash 3.2 . Lookups are O(n) but N is the number of
+  # placeholders in one template — effectively tiny.
+  local assign_idx=() assign_val=()
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    if [[ "$line" =~ ^\$([0-9]+)=(.*)$ ]]; then
+      assign_idx+=("${BASH_REMATCH[1]}")
+      assign_val+=("${BASH_REMATCH[2]}")
+    elif [[ -z "$rule" ]]; then
+      rule="$line"
+    fi
+  done < "$file"
+
+  if [[ -z "$rule" ]]; then
+    echo "error: template '$file' has no rule line" >&2
+    return 1
+  fi
+
+  IFS=':' read -r action port ip proto <<< "$rule"
+  if [[ -z "${action:-}" || -z "${port:-}" || -z "${ip:-}" || -z "${proto:-}" ]]; then
+    echo "error: template '$file' malformed (expected action:port:ip:proto)" >&2
+    return 1
+  fi
+  case "$action" in
+    allow|deny|reject|limit) ;;
+    *)
+      echo "error: template '$file' has invalid action '$action'" >&2
+      return 1
+      ;;
+  esac
+
+  local field val idx cmd out i
+  for field in port ip proto; do
+    val="${!field}"
+    if [[ "$val" =~ ^\$([0-9]+)$ ]]; then
+      idx="${BASH_REMATCH[1]}"
+      val="${argv[$((idx-1))]:-}"
+      if [[ -z "$val" ]]; then
+        cmd=""
+        for ((i=0; i<${#assign_idx[@]}; i++)); do
+          if [[ "${assign_idx[$i]}" == "$idx" ]]; then
+            cmd="${assign_val[$i]}"
+            break
+          fi
+        done
+        if [[ -n "$cmd" ]]; then
+          if out=$(bash -c "$cmd" 2>/dev/null); then
+            out="${out//$'\r'/}"
+            out="${out//$'\n'/}"
+            val="$out"
+          else
+            echo "warning: \$${idx} command failed: $cmd" >&2
+            val=""
+          fi
+        fi
+      fi
+      printf -v "$field" '%s' "$val"
+    fi
+  done
+
+  echo "template: $file"
+  wizard_rule "$action" "$port" "$ip" "$proto"
+}
+
 dispatch() {
   local sub="${1:-shell}"
   shift || true
@@ -213,20 +344,14 @@ dispatch() {
         run_rule delete "$@"
       fi
       ;;
-    reject|limit)
+    reject|limit|insert)
       run_rule "$sub" "$@"
-      ;;
-    insert)
-      run_rule insert "$@"
       ;;
     route-mode|routemode|mode)
       cmd_route_mode "$@"
       ;;
     list|ls)
       run_ufw status numbered
-      ;;
-    status|show|reload|enable|disable|reset|default|logging|app|version)
-      run_ufw "$sub" "$@"
       ;;
     shell)
       run_shell
@@ -235,9 +360,12 @@ dispatch() {
       usage
       ;;
     *)
-      echo "unknown command: $sub" >&2
-      usage
-      return 1
+      local tfile
+      if tfile=$(template_find "$sub"); then
+        template_run "$tfile" "$@"
+      else
+        run_ufw "$sub" "$@"
+      fi
       ;;
   esac
 }

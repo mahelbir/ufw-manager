@@ -93,3 +93,4 @@ zsdoc/data
 
 
 *.md
+/templates
