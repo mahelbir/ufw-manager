@@ -6,7 +6,8 @@ COPY src/ufw-manager /usr/local/bin/ufw
 RUN chmod +x /usr/local/bin/ufw
 
 RUN printf '%s\n' \
-'if [ -t 1 ]; then' \
+'if [ -t 1 ] && [ -z "${UFW_BANNER_SHOWN:-}" ]; then' \
+'  export UFW_BANNER_SHOWN=1' \
 '  /usr/local/bin/ufw help' \
 '  printf "\n\033[1;32m>>> Run \`ufw <command>\` to execute <<<\033[0m\n\n"' \
 'fi' \

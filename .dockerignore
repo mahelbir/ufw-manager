@@ -1,8 +1,9 @@
-# Git / VCS
+# CI/CD
 .git
 .gitignore
 .gitattributes
 .github/
+.claude
 
 # Environment / secrets
 .env

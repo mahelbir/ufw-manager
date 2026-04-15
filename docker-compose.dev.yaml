@@ -1,6 +1,6 @@
 services:
   ufw-manager:
-    image: mahelbir/ufw-manager:latest
+    build: .
     container_name: ufw-manager
     pid: host
     network_mode: host

@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST_UFW=(nsenter -t 1 -m -u -i -n -p -- ufw)
+# If our mount namespace matches PID 1's we're already on the host, so call
+# ufw directly. Otherwise hop into PID 1's namespaces via nsenter (the Docker
+# container case, where this script is the only thing in the image).
+detect_host_ufw() {
+  local host_ns self_ns
+  host_ns=$(readlink /proc/1/ns/mnt 2>/dev/null || true)
+  self_ns=$(readlink /proc/self/ns/mnt 2>/dev/null || true)
+  if [[ -n "$host_ns" && "$host_ns" == "$self_ns" ]]; then
+    HOST_UFW=(ufw)
+  else
+    HOST_UFW=(nsenter -t 1 -m -u -i -n -p -- ufw)
+  fi
+}
+
+HOST_UFW=()
+detect_host_ufw
 
 # Route mode toggle. When "on", rule commands are prefixed with `route` so
 # they affect the FORWARD chain (Docker / published-port traffic). When "off",
@@ -238,8 +253,8 @@ run_shell() {
     if [[ "$line" == "exit" || "$line" == "quit" ]]; then
       break
     fi
-    # shellcheck disable=SC2086
     set +e
+    # shellcheck disable=SC2086
     dispatch $line
     set -e
   done
