@@ -1,8 +1,9 @@
 IMAGE=mahelbir/ufw-manager
-VERSION=2.0.0
+VERSION=2.1.0
 
 dev:
 	docker compose -f docker-compose.dev.yaml up -d --build --force-recreate
+
 
 push:
 	docker buildx build \
@@ -10,3 +11,12 @@ push:
 	  -t $(IMAGE):$(VERSION) \
 	  -t $(IMAGE):latest \
 	  --push .
+
+
+lint:
+	bash -n src/ufw-manager
+	docker run --rm -v "$(CURDIR)/src:/work" -w /work \
+	  koalaman/shellcheck-alpine \
+	  shellcheck ufw-manager
+
+.PHONY: dev push lint

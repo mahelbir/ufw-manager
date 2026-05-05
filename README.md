@@ -12,32 +12,19 @@ script you can drop on any Linux host.
 
 ## ⭐ Why
 
-If you run `ufw` alongside Docker, you have probably hit the classic
-port-leak pitfall: `ufw deny` doesn't block published container ports. Docker
-inserts its own rules into the `DOCKER-USER` / `FORWARD` chains before ufw's
-`INPUT` rules ever see the traffic, so the usual shorthand silently does
-nothing for containers. The standard fix is `ufw-docker`, which relocates
-rules to the `FORWARD` chain via `ufw route ...`.
+`ufw deny` doesn't block published Docker container ports — Docker's rules
+sit in `FORWARD` before ufw's `INPUT` ever sees the traffic. The fix is
+`ufw route ...` (à la `ufw-docker`); `ufw-manager` makes it the default.
 
-`ufw-manager` makes that workflow painless:
-
-- **Route mode is on by default** — every `allow` / `deny` / `delete` is sent
-  as `ufw route ...`, so rules actually apply to published container ports.
-- **Interactive wizards** for `allow`, `deny`, `delete` — port, IP, protocol
-  prompts with a preview before execution.
-- **Multi-rule numbered delete** that sorts descending, so reindexing
-  doesn't shift later targets (a common footgun with `ufw delete N`).
-- **REPL shell** so you stop retyping `docker compose run --rm ufw-manager …`
-  for every command.
-- **Zero host install (Docker mode)** — the image only carries `bash` +
-  `nsenter` and runs ufw inside the host's namespaces. No ufw inside the
-  container, no iptables state bind-mounted from the host, no socket.
-- **Runs standalone too** — drop the script on a Linux host and it
-  auto-detects that it's already on the host and skips the namespace hop.
-- **[Template shortcuts](TEMPLATES.md)** — drop small `.tpl` files into a
-  folder so `ufw pg`, `ufw ssh`, `ufw mysql` open the wizard with port and
-  protocol pre-filled. Ship-with-image or bind-mount your own, override any
-  default without a rebuild.
+- **Route mode on by default** — rules go to `FORWARD`, so they actually
+  apply to container ports.
+- **Interactive wizards** with a preview before execution.
+- **Safe multi-rule delete** — sorted descending so indexes don't shift.
+- **REPL shell** — no more retyping `docker compose run --rm ufw-manager …`.
+- **Zero host install** in Docker mode (runs ufw via `nsenter` in the host's
+  namespaces) — or drop the script standalone on any Linux host.
+- **[Template shortcuts](TEMPLATES.md)** — `.tpl` files turn `ufw pg`,
+  `ufw ssh`, etc. into pre-filled wizards.
 
 ## 🔧 How to Install
 
@@ -181,17 +168,17 @@ Accepted values: `on` (default) or `off`.
 
 ## 📝 Commands
 
-| Command                        | Description                                              |
-|--------------------------------|----------------------------------------------------------|
-| `allow` / `deny`               | Interactive wizard (port → IP → protocol → preview)      |
-| `allow <args>` / `deny <args>` | Pass args to ufw (route-prefixed when mode is on)        |
-| `delete`                       | Interactive wizard, accepts multiple numbers at once     |
-| `delete <args>`                | Pass args to ufw                                         |
-| `list`                         | Alias for `ufw status numbered`                          |
-| `route-mode [on/off/toggle]`   | Show or change route mode                                |
-| `shell`                        | Interactive REPL                                         |
-| `<name> [args]`                | Run `<name>.tpl` — see [TEMPLATES.md](TEMPLATES.md)      |
-| `help`                         | Built-in help                                            |
+| Command                        | Description                                         |
+|--------------------------------|-----------------------------------------------------|
+| `allow` / `deny`               | Interactive wizard (port → IP → protocol → preview) |
+| `allow [args]` / `deny [args]` | Pass args to ufw (route-prefixed when mode is on)   |
+| `delete` / `del`               | Interactive wizard — numbers or `:port[/proto]`     |
+| `delete [args]` / `del [args]` | Pass args to ufw                                    |
+| `list` /  `ls`                 | Alias for `ufw status numbered`                     |
+| `route-mode [on/off/toggle]`   | Show or change route mode                           |
+| `shell`                        | Interactive REPL                                    |
+| `<name> [args]`                | Run `<name>.tpl` — see [TEMPLATES.md](TEMPLATES.md) |
+| `help`                         | Built-in help                                       |
 
 Any other command is forwarded to host ufw as-is — with the route prefix
 applied to rule verbs when route mode is on.
@@ -199,6 +186,8 @@ applied to rule verbs when route mode is on.
 ## 🔄 How to Update
 
 ### 🐳 Docker
+
+It is recommended to check the latest [docker-compose.yaml](docker-compose.yaml) for any changes before updating.
 
 ```bash
 docker compose pull
@@ -210,7 +199,6 @@ docker compose up -d --force-recreate
 Pull the latest changes and reinstall:
 
 ```bash
-cd ufw-manager
 git pull
 sudo install -m 755 src/ufw-manager /usr/local/bin/ufw-manager
 ```

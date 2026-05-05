@@ -178,34 +178,97 @@ wizard_rule() {
   return $failed
 }
 
-wizard_delete() {
-  echo "current rules:"
-  run_ufw status numbered
-  echo
-  local raw
-  read -r -p "rule number(s) to delete (space or comma separated): " raw
-  raw="${raw//,/ }"
-  # shellcheck disable=SC2206
-  local nums=($raw)
-
-  if (( ${#nums[@]} == 0 )); then
-    echo "error: at least one number required" >&2
+# Resolves ":port" or ":port/proto" into rule numbers from the captured
+# `ufw status numbered` output passed in $2. Prints one number per line.
+resolve_port_token() {
+  local token="$1" status="$2" port proto
+  token="${token#:}"
+  if [[ "$token" == */* ]]; then
+    port="${token%%/*}"
+    proto="${token#*/}"
+  else
+    port="$token"
+    proto=""
+  fi
+  if [[ ! "$port" =~ ^[0-9]+(:[0-9]+)?$ ]]; then
+    echo "error: invalid port spec ':$token'" >&2
+    return 1
+  fi
+  if [[ -n "$proto" && "$proto" != "tcp" && "$proto" != "udp" ]]; then
+    echo "error: invalid proto in ':$token' (tcp/udp)" >&2
     return 1
   fi
 
-  local n
-  for n in "${nums[@]}"; do
-    if [[ ! "$n" =~ ^[0-9]+$ ]]; then
-      echo "error: invalid number '$n'" >&2
+  local line n to tport tproto
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^\[[[:space:]]*([0-9]+)\][[:space:]]+([^[:space:]]+) ]]; then
+      n="${BASH_REMATCH[1]}"
+      to="${BASH_REMATCH[2]}"
+      tport="$to"
+      tproto=""
+      if [[ "$to" == */* ]]; then
+        tport="${to%%/*}"
+        tproto="${to#*/}"
+      fi
+      if [[ "$tport" == "$port" ]] && { [[ -z "$proto" || "$tproto" == "$proto" ]]; }; then
+        printf '%s\n' "$n"
+      fi
+    fi
+  done <<< "$status"
+}
+
+wizard_delete() {
+  local status
+  status=$(run_ufw status numbered)
+  echo "current rules:"
+  printf '%s\n' "$status"
+  echo
+  echo "tip: bare numbers delete by index; ':port' or ':port/proto' deletes all matching rules."
+  local raw
+  read -r -p "rule(s) to delete (e.g. '3 5' or ':5432' or ':22/tcp'): " raw
+  raw="${raw//,/ }"
+  # shellcheck disable=SC2206
+  local tokens=($raw)
+
+  if (( ${#tokens[@]} == 0 )); then
+    echo "error: at least one target required" >&2
+    return 1
+  fi
+
+  local nums=() tok matched m
+  for tok in "${tokens[@]}"; do
+    if [[ "$tok" == :* ]]; then
+      if ! matched=$(resolve_port_token "$tok" "$status"); then
+        return 1
+      fi
+      if [[ -z "$matched" ]]; then
+        echo "warning: '$tok' matched no rules" >&2
+        continue
+      fi
+      # shellcheck disable=SC2086
+      echo "  $tok -> $(echo $matched)"
+      while IFS= read -r m; do
+        [[ -n "$m" ]] && nums+=("$m")
+      done <<< "$matched"
+    elif [[ "$tok" =~ ^[0-9]+$ ]]; then
+      nums+=("$tok")
+    else
+      echo "error: invalid token '$tok' (expected number or :port[/proto])" >&2
       return 1
     fi
   done
+
+  if (( ${#nums[@]} == 0 )); then
+    echo "error: nothing to delete" >&2
+    return 1
+  fi
 
   # Dedupe and sort descending so earlier deletes don't shift later indices.
   local sorted
   sorted=$(printf '%s\n' "${nums[@]}" | sort -un | sort -rn)
   # shellcheck disable=SC2206
   local ordered=($sorted)
+  local n
 
   echo "rules to delete (high to low): ${ordered[*]}"
   local ans
@@ -388,4 +451,6 @@ run_shell() {
   done
 }
 
-dispatch "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  dispatch "$@"
+fi
