@@ -223,9 +223,8 @@ wizard_delete() {
   echo "current rules:"
   printf '%s\n' "$status"
   echo
-  echo "tip: bare numbers delete by index; ':port' or ':port/proto' deletes all matching rules."
   local raw
-  read -r -p "rule(s) to delete (e.g. '3 5' or ':5432' or ':22/tcp'): " raw
+  read -r -p "delete (numbers or :port[/proto], e.g. '3 5', ':5432' or ':22/tcp'): " raw
   raw="${raw//,/ }"
   # shellcheck disable=SC2206
   local tokens=($raw)
@@ -245,8 +244,7 @@ wizard_delete() {
         echo "warning: '$tok' matched no rules" >&2
         continue
       fi
-      # shellcheck disable=SC2086
-      echo "  $tok -> $(echo $matched)"
+      echo "  $tok -> ${matched//$'\n'/ }"
       while IFS= read -r m; do
         [[ -n "$m" ]] && nums+=("$m")
       done <<< "$matched"

@@ -93,5 +93,5 @@ zsdoc/data
 
 
 **/*.local.*
-*.md
+**/*.md
 /templates

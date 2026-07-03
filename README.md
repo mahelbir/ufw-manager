@@ -1,20 +1,16 @@
 # ufw-manager
 
-<a target="_blank" href="https://hub.docker.com/r/mahelbir/ufw-manager"><img src="https://img.shields.io/docker/pulls/mahelbir/ufw-manager" /></a>
-<a target="_blank" href="https://hub.docker.com/r/mahelbir/ufw-manager"><img src="https://img.shields.io/docker/v/mahelbir/ufw-manager?label=docker%20image%20ver." /></a>
+[![docker image ver.](https://img.shields.io/docker/v/mahelbir/ufw-manager?label=docker%20image%20ver.)](https://hub.docker.com/r/mahelbir/ufw-manager)
 
-A thin, ergonomic wrapper around the host's UFW firewall — interactive
-wizards, a REPL, template shortcuts, and sane defaults for
-servers that run Docker behind
-[ufw-docker](https://github.com/chaifeng/ufw-docker). Ships as a tiny Alpine
-image (no host agent, no ufw inside the container) or as a standalone bash
-script you can drop on any Linux host.
+An ergonomic UFW wrapper for servers running Docker behind
+[ufw-docker](https://github.com/chaifeng/ufw-docker)
 
 ## ⭐ Why
 
 `ufw deny` doesn't block published Docker container ports — Docker's rules
-sit in `FORWARD` before ufw's `INPUT` ever sees the traffic. The fix is
-`ufw route ...` (à la `ufw-docker`); `ufw-manager` makes it the default.
+sit in `FORWARD` before ufw's `INPUT` ever sees the traffic. [`ufw-docker`](https://github.com/chaifeng/ufw-docker)
+solves this by adding rules via `ufw route ...` to the `DOCKER-USER` chain;
+`ufw-manager` wraps that workflow to make managing `ufw-docker` easier, with route mode on by default.
 
 - **Route mode on by default** — rules go to `FORWARD`, so they actually
   apply to container ports.
@@ -25,6 +21,12 @@ sit in `FORWARD` before ufw's `INPUT` ever sees the traffic. The fix is
   namespaces) — or drop the script standalone on any Linux host.
 - **[Template shortcuts](TEMPLATES.md)** — `.tpl` files turn `ufw pg`,
   `ufw ssh`, etc. into pre-filled wizards.
+
+## 📋 Requirements
+
+- **ufw** (required) — installed and enabled on the host.
+- **[ufw-docker](https://github.com/chaifeng/ufw-docker)** (recommended) — install it on the host so route-mode rules
+  land in the `DOCKER-USER` chain and actually filter published container ports.
 
 ## 🔧 How to Install
 
@@ -206,6 +208,11 @@ sudo install -m 755 src/ufw-manager /usr/local/bin/ufw-manager
 ## 🗣️ Discussion / Bug Report
 
 - [GitHub Issues](https://github.com/mahelbir/ufw-manager/issues)
+
+## 🫶🏻 Support
+
+If this project helps you, please consider giving it a [Star ⭐️](https://github.com/mahelbir/ufw-manager) on GitHub.
+This will encourage us to continue developing and maintaining this project.
 
 ## 📄 License
 
