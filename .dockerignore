@@ -1,97 +1,147 @@
-# CI/CD
-.git
-.gitignore
-.gitattributes
-.github/
-.claude
+# Version control
+**/.git
+**/.gitignore
+**/.gitattributes
+**/.gitmodules
+**/.github
+**/.gitlab-ci.yml
+**/.hg
+**/.svn
 
-# Environment / secrets
-.env
-.env.*
-*.pem
-*.key
+# Docker / CI / agent metadata
+**/Dockerfile
+**/Dockerfile.*
+**/*.dockerfile
+**/.dockerignore
+**/compose*.y*ml
+**/docker-compose*.y*ml
+**/.circleci
+**/.travis.yml
+**/.agents
+**/.claude
 
-# Docker metadata (compose / ignore file itself)
-docker-compose.yaml
-docker-compose.yml
-.dockerignore
-
-# JetBrains IDEs
-.idea/
-*.iml
-*.ipr
-*.iws
-out/
-cmake-build-*/
-atlassian-ide-plugin.xml
-
-# VS Code
-.vscode/
-.history/
-.ionide
-*.vsix
-
-# Sublime Text
-*.sublime-workspace
-*.tmlanguage.cache
-*.tmPreferences.cache
-*.stTheme.cache
-sftp-config.json
-sftp-config-alt*.json
-Package Control.*
-GitHub.sublime-settings
-bh_unicode_properties.cache
-oscrypto-ca-bundle.crt
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-*.icloud
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Zsh
-*.zwc
-*.zwc.old
-*zcompdump*
-.zsh_history
-.zsh_sessions
-.zcalc_history
-._zinit
-.zinit_lstupd
-zsdoc/data
-.directory_history
-.venv
-
-
+# Secrets & credentials
+**/.env
+**/.env.*
 **/*.local.*
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+**/*.p8
+**/*.jks
+**/*.keystore
+**/id_rsa
+**/id_dsa
+**/id_ecdsa
+**/id_ed25519
+**/*.ppk
+**/.ssh
+**/.aws
+**/.netrc
+**/.pypirc
+**/.git-credentials
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+
+# IDE / editor
+**/.idea
+**/.vscode
+**/.vs
+**/.fleet
+**/.history
+**/*.iml
+**/*.suo
+**/*.user
+**/.project
+**/.classpath
+**/.settings
+**/*.sublime-workspace
+**/*.swp
+**/*.swo
+**/*~
+
+# OS cruft
+**/.DS_Store
+**/.AppleDouble
+**/.LSOverride
+**/._*
+**/.Spotlight-V100
+**/.Trashes
+**/.fseventsd
+**/Thumbs.db
+**/ehthumbs.db
+**/[Dd]esktop.ini
+**/$RECYCLE.BIN
+**/*.lnk
+
+# Logs / temp / runtime
+**/*.log
+**/logs
+**/tmp
+**/temp
+**/*.tmp
+**/*.bak
+**/*.pid
+**/*.seed
+
+# Tests / coverage / caches
+**/coverage
+**/.nyc_output
+**/htmlcov
+**/.cache
+**/.turbo
+
+# Node
+**/node_modules
+**/.next
+**/.nuxt
+**/.svelte-kit
+**/.parcel-cache
+**/.pnpm-store
+**/.yarn/cache
+**/.eslintcache
+**/.stylelintcache
+**/*.tsbuildinfo
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.eggs
+**/.venv
+**/venv
+**/.tox
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.ipynb_checkpoints
+
+# Java / JVM + Rust
+**/target
+**/.gradle
+**/*.class
+**/hs_err_pid*
+**/*.rs.bk
+
+# .NET / C#
+**/bin
+**/obj
+**/TestResults
+
+# Dependencies / build output
+**/dist
+**/build
+**/out
+
+# Docs
 **/*.md
+**/LICENSE
+
+# Re-include placeholders
+!**/*.example
+!**/*.sample
+
+# Project-specific
 /templates

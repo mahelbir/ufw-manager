@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Package templates
+        run: tar -czf ufw-manager-templates.tar.gz -C src/templates default
       - name: Generate release notes
         id: cliff
         uses: orhun/git-cliff-action@v4
@@ -37,3 +39,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           body: ${{ steps.cliff.outputs.content }}
+          files: |
+            src/ufw-manager
+            ufw-manager-templates.tar.gz
