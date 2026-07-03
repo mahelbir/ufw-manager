@@ -92,5 +92,6 @@ zsdoc/data
 .venv
 
 
+**/*.local.*
 *.md
 /templates

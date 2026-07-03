@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "v*" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: bash -n src/ufw-manager
+
+  github-release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Generate release notes
+        id: cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --latest --strip all --skip-commit ${{ github.sha }}
+        env:
+          GIT_CLIFF__GIT__FILTER_UNCONVENTIONAL: false
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          body: ${{ steps.cliff.outputs.content }}
